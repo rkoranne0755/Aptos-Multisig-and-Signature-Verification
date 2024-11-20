@@ -1,0 +1,149 @@
+
+
+
+//     use aptos_std::hash;
+//     use aptos_std::ed25519;
+//     use std::bcs;       
+
+//     struct ManagedNonce has key{
+//         nonce: u64
+//     }
+
+//     struct AdminSigner has key {
+//         signer_vec: vector<vector<u8>>, 
+//     }
+
+//      struct SignVerify has drop, store{
+//         signatureEd: ed25519::Signature,
+//         result: bool,   
+//     }
+
+
+//     fun signature_verification(messageHash: vector<u8>, signature: vector<u8>): bool acquires AdminSigner{
+//         let m_vec = borrow_global<AdminSigner>(@KCashAdmin).signer_vec;
+//         let len = vector::length(&m_vec);
+//         assert!(len > 0, error::invalid_argument(EINVALID_ARGUMENTS_LENGTH));
+//         // let res = false;
+//         let i = 0;
+            
+//         // Converting Signature Bytes into Ed25519 Signature
+//         let signatureEd = ed25519::new_signature_from_bytes(signature);
+//         while (i < len) {
+//             let pubkey = vector::borrow(&m_vec, i);
+            
+//             // Converting Public Key Bytes into UnValidated Public Key
+//             let unValidatedPublickkey = ed25519:: new_unvalidated_public_key_from_bytes(*pubkey);
+            
+//             // Verifying Signature using Message Hash and public key
+//             let res = ed25519::signature_verify_strict(&signatureEd, &unValidatedPublickkey, messageHash);
+//             if(res) {
+//                 event::emit<SignVerify>(SignVerify{signatureEd, result: true});
+//                 return true
+//             }
+//             else{
+//                 i = i + 1;
+//             }
+//         };
+//         event::emit<SignVerify>(SignVerify{signatureEd, result: false});
+//         return false
+//     }
+
+
+// struct AdminTransferSignature has drop, store {
+//         from: address,
+//         to: address,
+//         method: String,
+//         nonce: u64,
+//         deductionFromSender: vector<u64>,
+//         additionToRecipient: vector<u64>,
+//     }
+
+//     fun withdraw_rewards_from_bucket(owner: address, r1: u64, r2: u64, r3: u64) acquires BucketStore{
+//         assert!(has_bucket_store(owner), error::invalid_argument(EUSER_DO_NOT_HAVE_BUCKET_STORE));
+//         let token_address = get_bucket_user_address(&owner);
+//         let bs = borrow_global_mut<BucketStore>(token_address);
+//         assert!(bs.reward1 >= r1 && bs.reward2 >= r2 && bs.reward3 >= r3, error::invalid_argument(EAMOUNT_SHOULD_BE_EQUAL_OR_LESS_THAN_BUCKET_ASSETS));
+//         bs.reward1 = bs.reward1 - r1;
+//         bs.reward2 = bs.reward2 - r2;
+//         bs.reward3 = bs.reward3 - r3;
+//         event::emit(WithdrawFromBucket { owner, amount: r1+r2+r3 });
+//     }
+
+//     fun deposit_to_bucket(receiver: &address, reward1: u64, reward2: u64, reward3: u64) acquires BucketStore, BucketCore{
+//         ensure_bucket_store_exist(receiver);
+//         let token_address = get_bucket_user_address(receiver);
+//         let bs = borrow_global_mut<BucketStore>(token_address);
+//         bs.reward1 = bs.reward1 + reward1;
+//         bs.reward2 = bs.reward2 + reward2;
+//         bs.reward3 = bs.reward3 + reward3;
+//         event::emit(DepositToBucket { receiver: *receiver, reward1, reward2, reward3 });
+//     }
+
+//     fun transfer_internal(from: &signer, to: &address, amount: u64) acquires ManagedFungibleAsset{
+//         let asset = get_metadata();
+//         let transfer_ref = authorized_borrow_transfer_refs(asset);
+//         let from_wallet = primary_fungible_store::primary_store(signer::address_of(from), asset);
+//         let to_wallet = primary_fungible_store::ensure_primary_store_exists(*to, asset);
+//         fungible_asset::transfer_with_ref(transfer_ref, from_wallet, to_wallet, amount);
+//     }
+
+
+//  fun update_nonce(admin: &address) acquires ManagedNonce{
+//         let c = borrow_global_mut<ManagedNonce>(*admin);
+//         c.nonce = c.nonce + 1;
+//     }
+
+// fun ensure_nonce(user: &signer) : u64 acquires ManagedNonce{
+//         if (!exists<ManagedNonce>(signer::address_of(user))){
+//             move_to(user, ManagedNonce{ nonce: 0 });
+//             0
+//         }
+//         else borrow_global_mut<ManagedNonce>(signer::address_of(user)).nonce
+//     }
+ 
+//  fun verifyAdminTransfer(admin_transfer: &address): bool acquires AdminTransferRole{
+//         let t_vec = borrow_global<AdminTransferRole>(@KCashAdmin).transfer_role_vec;
+//         assert!(!vector::is_empty(&t_vec), error::invalid_argument(EINVALID_ARGUMENTS_LENGTH));
+//         vector::contains(&t_vec, admin_transfer)
+//     }
+    
+//     public entry fun admin_transfer_with_signature
+//         (admin: &signer, 
+//         to: address, 
+//         deductnFromSender: vector<u64>,
+//         additnToRecipient: vector<u64>,
+//         signature: vector<u8>) 
+//         acquires ManagedFungibleAsset,
+//         BucketStore,
+//         BucketCore,
+//         ManagedNonce,
+//         AdminSigner,
+//         AdminTransferRole 
+//         {
+//         assert!(verifyAdminTransfer(&signer::address_of(admin)), error::invalid_argument(EINVALID_ROLE));
+//         let nonce = ensure_nonce(admin);
+//         let message = AdminTransferSignature{
+//             from: signer::address_of(admin),
+//             to,
+//             method: string::utf8(b"admin_transfer_with_signature"),
+//             nonce,
+//             deductionFromSender: deductnFromSender,
+//             additionToRecipient: additnToRecipient,
+//         };     
+//         let messag_bytes = bcs::to_bytes<AdminTransferSignature>(&message);
+//         let message_hash = hash::sha2_256(messag_bytes);
+
+//         // Verify designated signer with signature
+//         let is_signature_valid = signature_verification(message_hash, signature);
+//         assert!(is_signature_valid, error::permission_denied(EINVALID_SIGNATURE));
+
+//         assert!(vector::length(&deductnFromSender) == vector::length(&additnToRecipient), error::invalid_argument(EINVALID_ARGUMENTS_LENGTH));
+//         let (r1, r2, r3) = (*vector::borrow(&deductnFromSender, 0), *vector::borrow(&deductnFromSender, 1), *vector::borrow(&deductnFromSender, 2));
+//         let (a1, a2, a3) = (*vector::borrow(&additnToRecipient, 0), *vector::borrow(&additnToRecipient, 1), *vector::borrow(&additnToRecipient, 2));
+//         assert!(a1+a2+a3 == r1+r2+r3, error::invalid_argument(EAMOUNT_SHOULD_BE_EQUAL_TO_ASSETS));
+
+//         withdraw_rewards_from_bucket(signer::address_of(admin), r1, r2, r3);
+//         deposit_to_bucket(&to, a1, a2, a3);
+//         transfer_internal(admin, &to, r1+r2+r3);
+//         update_nonce(&signer::address_of(admin));
+//     }
